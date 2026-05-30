@@ -1,36 +1,169 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# Link Shortener
+
+A modern URL shortener built with **Next.js (App Router)**, **MongoDB/Mongoose**, and **Tailwind CSS**. Paste a long URL, get a clean short link with a scannable QR code, and track clicks on every visit.
+
+The data layer is also scaffolded for AI-powered enhancements (link summaries, categorization, security status, and artistic QR codes) via the Gemini and FAL AI API placeholders.
+
+---
+
+## Features
+
+- 🔗 **URL shortening** — custom Base62 encoding with a collision-resistant random fallback.
+- 📊 **Click analytics** — every redirect logs the visit (device / user-agent, referrer, timestamp).
+- 🧾 **Standard QR codes** — base64 PNG data URIs generated on demand.
+- 🌙 **Clean dark-mode UI** — responsive Tailwind landing page with copy-to-clipboard.
+- ⚡ **Serverless-friendly** — cached Mongoose connection that survives hot-reloads and serverless invocations.
+
+---
+
+## Tech Stack
+
+| Layer       | Technology                          |
+| ----------- | ----------------------------------- |
+| Framework   | Next.js 16 (App Router, JavaScript) |
+| Database    | MongoDB via Mongoose                |
+| Styling     | Tailwind CSS                        |
+| QR codes    | `qrcode`                            |
+| Env / config| `dotenv`                            |
+| Linting     | ESLint (`eslint-config-next`)       |
+
+---
+
+## Project Structure
+
+```
+src/
+├── app/
+│   ├── page.js                # Landing page + URL submission form
+│   ├── api/
+│   │   ├── links/route.js     # POST — create a short link
+│   │   └── qr/route.js        # GET  — generate a QR code data URI
+│   └── rs/[code]/route.js     # GET  — redirect + click logging
+├── lib/
+│   ├── db.js                  # Cached Mongoose connection helper
+│   └── utils/base62.js        # encode / decode / random code generator
+└── models/
+    ├── Link.js                # Link schema
+    └── Click.js               # Click analytics schema
+```
+
+---
 
 ## Getting Started
 
-First, run the development server:
+### 1. Install dependencies
+
+```bash
+npm install
+```
+
+### 2. Configure environment variables
+
+Create a `.env.local` file in the project root:
+
+```bash
+MONGODB_URI=your_mongodb_connection_string
+GEMINI_API_KEY=your_gemini_api_key      # reserved for AI metadata features
+FAL_AI_API_KEY=your_fal_ai_api_key      # reserved for artistic QR features
+```
+
+> `MONGODB_URI` is required for the app to connect to the database. The AI keys are placeholders for upcoming features and are not yet wired up.
+
+### 3. Run the dev server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## API Reference
 
-## Learn More
+### `POST /api/links`
 
-To learn more about Next.js, take a look at the following resources:
+Create a new short link.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+**Request body**
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```json
+{ "longUrl": "https://example.com/some/very/long/path" }
+```
 
-## Deploy on Vercel
+**Response — `201 Created`**
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```json
+{
+  "id": "65f...",
+  "longUrl": "https://example.com/some/very/long/path",
+  "shortCode": "bfP3Qp",
+  "securityStatus": "pending",
+  "createdAt": "2026-05-30T12:00:00.000Z"
+}
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Status | Meaning                                |
+| ------ | -------------------------------------- |
+| 400    | Missing/invalid JSON or non-http(s) URL|
+| 500    | Server / database error                |
+
+### `GET /api/qr?url=<encoded_url>`
+
+Generate a QR code for any URL.
+
+**Response — `200 OK`**
+
+```json
+{ "url": "http://localhost:3000/rs/bfP3Qp", "qrCode": "data:image/png;base64,..." }
+```
+
+The `qrCode` field is a data URI that can be used directly as an `<img src>`.
+
+### `GET /rs/[code]`
+
+Resolve a short code and redirect to the original URL. Logs a click on every visit, then issues a **302** redirect (temporary, so analytics keep firing). Unknown codes redirect to the home page.
+
+---
+
+## Data Models
+
+**Link**
+
+| Field            | Type     | Notes                                       |
+| ---------------- | -------- | ------------------------------------------- |
+| `longUrl`        | String   | required                                    |
+| `shortCode`      | String   | required, unique                            |
+| `createdAt`      | Date     | defaults to now                             |
+| `securityStatus` | String   | `safe` \| `flagged` \| `pending`            |
+| `aiMetadata`     | Object   | `{ summary, category, tags[] }`             |
+| `artisticQrUrl`  | String   | reserved for AI-generated QR art            |
+
+**Click**
+
+| Field       | Type     | Notes                       |
+| ----------- | -------- | --------------------------- |
+| `linkId`    | ObjectId | references `Link`           |
+| `timestamp` | Date     | defaults to now             |
+| `device`    | String   | from the `user-agent` header|
+| `referrer`  | String   | from the `referer` header   |
+
+---
+
+## Scripts
+
+| Command         | Description                       |
+| --------------- | --------------------------------- |
+| `npm run dev`   | Start the development server      |
+| `npm run build` | Create a production build         |
+| `npm run start` | Run the production build          |
+| `npm run lint`  | Run ESLint                        |
+
+---
+
+## Roadmap
+
+- [ ] AI link summaries & categorization (Gemini)
+- [ ] Artistic QR code generation (FAL AI)
+- [ ] Security/safety scanning to drive `securityStatus`
+- [ ] Analytics dashboard for click data
