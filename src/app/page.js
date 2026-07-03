@@ -53,14 +53,14 @@ export default function Home() {
     }
   }
 
-  // Fetch the standard QR once we have a short link.
+  // Fetch the standard QR once we have a short link. Uses the same shortUrl
+  // as the display and styled QR so all three stay in sync.
   useEffect(() => {
-    if (!shortLinkData) return;
+    if (!shortUrl) return;
     let cancelled = false;
-    const url = `${window.location.origin}/rs/${shortLinkData.shortCode}`;
     (async () => {
       try {
-        const res = await fetch(`/api/qr?url=${encodeURIComponent(url)}`);
+        const res = await fetch(`/api/qr?url=${encodeURIComponent(shortUrl)}`);
         const data = await res.json();
         if (!cancelled && res.ok) setQrCodeData(data.qrCode);
       } catch {
@@ -70,7 +70,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [shortLinkData]);
+  }, [shortUrl]);
 
   async function copyToClipboard() {
     try {
