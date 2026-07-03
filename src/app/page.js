@@ -11,9 +11,14 @@ export default function Home() {
   const [styled, setStyled] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const shortUrl = shortLinkData
-    ? `${window.location.origin}/rs/${shortLinkData.shortCode}`
-    : '';
+  // Use a configured short domain in production; fall back to the current origin.
+  const base = (
+    process.env.NEXT_PUBLIC_SHORT_DOMAIN ||
+    (typeof window !== 'undefined' ? window.location.origin : '')
+  ).replace(/\/$/, '');
+  const shortUrl = shortLinkData ? `${base}/rs/${shortLinkData.shortCode}` : '';
+  // Prettier version for display — no protocol, no leading "www.".
+  const displayUrl = shortUrl.replace(/^https?:\/\//, '').replace(/^www\./, '');
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -180,7 +185,7 @@ export default function Home() {
                   rel="noopener noreferrer"
                   className="truncate text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-300 to-fuchsia-300 hover:from-indigo-200 hover:to-fuchsia-200"
                 >
-                  {shortUrl}
+                  {displayUrl}
                 </a>
                 <button
                   onClick={copyToClipboard}

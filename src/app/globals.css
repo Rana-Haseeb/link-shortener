@@ -125,7 +125,7 @@ body {
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
-/* Conic glowing border wrapper. */
+/* Static gradient glow border wrapper (no rotation). */
 .glow-border {
   position: relative;
   border-radius: 1rem;
@@ -136,23 +136,11 @@ body {
   inset: -1.5px;
   border-radius: inherit;
   padding: 1.5px;
-  background: conic-gradient(
-    from var(--angle, 0deg),
-    #6366f1, #d946ef, #06b6d4, #6366f1
-  );
+  background: linear-gradient(120deg, #6366f1, #d946ef, #06b6d4);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
-  animation: spin 6s linear infinite;
-  opacity: 0.9;
-}
-@property --angle {
-  syntax: "<angle>";
-  initial-value: 0deg;
-  inherits: false;
-}
-@keyframes spin {
-  to { --angle: 360deg; }
+  opacity: 0.55;
 }
 
 /* Pulsing glow for the primary CTA. */
