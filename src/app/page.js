@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export default function Home() {
   const [longUrl, setLongUrl] = useState('');
@@ -8,8 +8,7 @@ export default function Home() {
   const [error, setError] = useState('');
   const [shortLinkData, setShortLinkData] = useState(null);
   const [qrCodeData, setQrCodeData] = useState('');
-  const [artisticQr, setArtisticQr] = useState('');
-  const [artisticLoading, setArtisticLoading] = useState(false);
+  const [styled, setStyled] = useState(false);
   const [copied, setCopied] = useState(false);
 
   // Build the full short URL from the returned shortCode.
@@ -22,7 +21,7 @@ export default function Home() {
     setError('');
     setShortLinkData(null);
     setQrCodeData('');
-    setArtisticQr('');
+    setStyled(false);
     setCopied(false);
 
     if (!longUrl.trim()) {
@@ -53,7 +52,7 @@ export default function Home() {
     }
   }
 
-  // Once we have a short link, fetch its QR code from /api/qr.
+  // Once we have a short link, fetch its standard QR code from /api/qr.
   useEffect(() => {
     if (!shortLinkData) return;
 
@@ -77,29 +76,6 @@ export default function Home() {
       cancelled = true;
     };
   }, [shortLinkData]);
-
-  async function generateArtistic() {
-    if (!shortLinkData) return;
-    setArtisticLoading(true);
-    setError('');
-    try {
-      const res = await fetch('/api/artistic-qr', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: shortUrl, id: shortLinkData.id }),
-      });
-      const data = await res.json();
-      if (res.ok && data.artisticQrUrl) {
-        setArtisticQr(data.artisticQrUrl);
-      } else {
-        setError(data.message || 'Artistic QR is currently unavailable.');
-      }
-    } catch {
-      setError('Could not generate artistic QR. Please try again.');
-    } finally {
-      setArtisticLoading(false);
-    }
-  }
 
   async function copyToClipboard() {
     try {
@@ -195,34 +171,114 @@ export default function Home() {
               </div>
             )}
 
-            {/* QR code for the short link — standard, or artistic if generated. */}
+            {/* QR code — standard PNG, or a styled QR rendered client-side. */}
             {qrCodeData && (
               <div className="mt-5 flex flex-col items-center border-t border-zinc-800 pt-5">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={artisticQr || qrCodeData}
-                  alt={`QR code for ${shortUrl}`}
-                  width={220}
-                  height={220}
-                  className="rounded-lg bg-white p-2"
-                />
-                <p className="mt-2 text-xs text-zinc-500">
-                  {artisticQr ? 'AI-generated artistic QR' : 'Scan to open the link'}
-                </p>
-                {!artisticQr && (
+                {/* Toggle between the two QR styles. */}
+                <div className="mb-4 inline-flex rounded-lg border border-zinc-700 p-0.5 text-sm">
                   <button
-                    onClick={generateArtistic}
-                    disabled={artisticLoading}
-                    className="mt-3 rounded-md border border-indigo-500/40 px-3 py-1.5 text-sm text-indigo-300 transition hover:bg-indigo-500/10 disabled:opacity-60"
+                    onClick={() => setStyled(false)}
+                    className={`rounded-md px-3 py-1 transition ${
+                      !styled ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-zinc-200'
+                    }`}
                   >
-                    {artisticLoading ? 'Generating…' : '✨ Generate artistic QR'}
+                    Standard
                   </button>
+                  <button
+                    onClick={() => setStyled(true)}
+                    className={`rounded-md px-3 py-1 transition ${
+                      styled ? 'bg-indigo-600 text-white' : 'text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    ✨ Styled
+                  </button>
+                </div>
+
+                {styled ? (
+                  <StyledQr url={shortUrl} />
+                ) : (
+                  <>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={qrCodeData}
+                      alt={`QR code for ${shortUrl}`}
+                      width={220}
+                      height={220}
+                      className="rounded-lg bg-white p-2"
+                    />
+                    <p className="mt-2 text-xs text-zinc-500">Scan to open the link</p>
+                  </>
                 )}
               </div>
             )}
           </div>
         )}
       </main>
+    </div>
+  );
+}
+
+function StyledQr({ url }) {
+  const containerRef = useRef(null);
+  const qrRef = useRef(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function render() {
+      // qr-code-styling touches the DOM, so import it only on the client.
+      const QRCodeStyling = (await import('qr-code-styling')).default;
+      if (cancelled) return;
+
+      const qr = new QRCodeStyling({
+        width: 220,
+        height: 220,
+        data: url,
+        margin: 8,
+        // High error correction keeps the code scannable despite styling.
+        qrOptions: { errorCorrectionLevel: 'H' },
+        dotsOptions: {
+          type: 'rounded',
+          gradient: {
+            type: 'linear',
+            rotation: 0.8,
+            colorStops: [
+              { offset: 0, color: '#6366f1' },
+              { offset: 1, color: '#a855f7' },
+            ],
+          },
+        },
+        cornersSquareOptions: { type: 'extra-rounded', color: '#4f46e5' },
+        cornersDotOptions: { type: 'dot', color: '#a855f7' },
+        backgroundOptions: { color: '#ffffff' },
+      });
+
+      qrRef.current = qr;
+      if (containerRef.current) {
+        containerRef.current.innerHTML = '';
+        qr.append(containerRef.current);
+      }
+    }
+
+    render();
+    return () => {
+      cancelled = true;
+    };
+  }, [url]);
+
+  function download() {
+    qrRef.current?.download({ name: 'styled-qr', extension: 'png' });
+  }
+
+  return (
+    <div className="flex flex-col items-center">
+      <div ref={containerRef} className="rounded-lg bg-white p-2" />
+      <button
+        onClick={download}
+        className="mt-3 rounded-md border border-indigo-500/40 px-3 py-1.5 text-sm text-indigo-300 transition hover:bg-indigo-500/10"
+      >
+        ⬇ Download PNG
+      </button>
     </div>
   );
 }
