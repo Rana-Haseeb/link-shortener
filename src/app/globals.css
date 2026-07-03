@@ -141,6 +141,8 @@ body {
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   opacity: 0.55;
+  /* Must not sit on top of the input and swallow clicks/paste. */
+  pointer-events: none;
 }
 
 /* Pulsing glow for the primary CTA. */
