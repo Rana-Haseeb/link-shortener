@@ -8,6 +8,8 @@ export default function Home() {
   const [error, setError] = useState('');
   const [shortLinkData, setShortLinkData] = useState(null);
   const [qrCodeData, setQrCodeData] = useState('');
+  const [artisticQr, setArtisticQr] = useState('');
+  const [artisticLoading, setArtisticLoading] = useState(false);
   const [copied, setCopied] = useState(false);
 
   // Build the full short URL from the returned shortCode.
@@ -20,6 +22,7 @@ export default function Home() {
     setError('');
     setShortLinkData(null);
     setQrCodeData('');
+    setArtisticQr('');
     setCopied(false);
 
     if (!longUrl.trim()) {
@@ -74,6 +77,29 @@ export default function Home() {
       cancelled = true;
     };
   }, [shortLinkData]);
+
+  async function generateArtistic() {
+    if (!shortLinkData) return;
+    setArtisticLoading(true);
+    setError('');
+    try {
+      const res = await fetch('/api/artistic-qr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: shortUrl, id: shortLinkData.id }),
+      });
+      const data = await res.json();
+      if (res.ok && data.artisticQrUrl) {
+        setArtisticQr(data.artisticQrUrl);
+      } else {
+        setError(data.message || 'Artistic QR is currently unavailable.');
+      }
+    } catch {
+      setError('Could not generate artistic QR. Please try again.');
+    } finally {
+      setArtisticLoading(false);
+    }
+  }
 
   async function copyToClipboard() {
     try {
@@ -145,23 +171,77 @@ export default function Home() {
               </button>
             </div>
 
-            {/* Standard QR code for the short link. */}
+            {/* AI-generated metadata. */}
+            {shortLinkData.aiMetadata?.summary && (
+              <div className="mt-4 border-t border-zinc-800 pt-4">
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <SecurityBadge status={shortLinkData.securityStatus} />
+                  {shortLinkData.aiMetadata.category && (
+                    <span className="rounded-full bg-zinc-800 px-2.5 py-0.5 text-xs text-zinc-300">
+                      {shortLinkData.aiMetadata.category}
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-zinc-400">{shortLinkData.aiMetadata.summary}</p>
+                {shortLinkData.aiMetadata.tags?.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {shortLinkData.aiMetadata.tags.map((tag) => (
+                      <span key={tag} className="text-xs text-indigo-400">
+                        #{tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* QR code for the short link — standard, or artistic if generated. */}
             {qrCodeData && (
               <div className="mt-5 flex flex-col items-center border-t border-zinc-800 pt-5">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={qrCodeData}
+                  src={artisticQr || qrCodeData}
                   alt={`QR code for ${shortUrl}`}
-                  width={200}
-                  height={200}
+                  width={220}
+                  height={220}
                   className="rounded-lg bg-white p-2"
                 />
-                <p className="mt-2 text-xs text-zinc-500">Scan to open the link</p>
+                <p className="mt-2 text-xs text-zinc-500">
+                  {artisticQr ? 'AI-generated artistic QR' : 'Scan to open the link'}
+                </p>
+                {!artisticQr && (
+                  <button
+                    onClick={generateArtistic}
+                    disabled={artisticLoading}
+                    className="mt-3 rounded-md border border-indigo-500/40 px-3 py-1.5 text-sm text-indigo-300 transition hover:bg-indigo-500/10 disabled:opacity-60"
+                  >
+                    {artisticLoading ? 'Generating…' : '✨ Generate artistic QR'}
+                  </button>
+                )}
               </div>
             )}
           </div>
         )}
       </main>
     </div>
+  );
+}
+
+function SecurityBadge({ status }) {
+  const styles = {
+    safe: 'bg-green-500/15 text-green-400',
+    flagged: 'bg-red-500/15 text-red-400',
+    pending: 'bg-yellow-500/15 text-yellow-400',
+  };
+  const label = {
+    safe: '✓ Safe',
+    flagged: '⚠ Flagged',
+    pending: '… Pending',
+  };
+  const key = styles[status] ? status : 'pending';
+  return (
+    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${styles[key]}`}>
+      {label[key]}
+    </span>
   );
 }

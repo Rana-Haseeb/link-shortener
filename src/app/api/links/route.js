@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db';
 import Link from '@/models/Link';
 import { encode, generateRandomCode } from '@/lib/utils/base62';
+import { generateLinkMetadata } from '@/lib/ai/metadata';
 
 // Large random offset keeps generated codes non-sequential/unguessable.
 const MAX_RANDOM_OFFSET = 1_000_000_000;
@@ -76,12 +77,26 @@ export async function POST(request) {
       );
     }
 
+    // Enrich with AI metadata (summary/category/tags/security). Non-fatal:
+    // if it fails or returns null, the link is still saved and returned.
+    const aiMetadata = await generateLinkMetadata(link.longUrl);
+    if (aiMetadata) {
+      link.aiMetadata = {
+        summary: aiMetadata.summary,
+        category: aiMetadata.category,
+        tags: aiMetadata.tags,
+      };
+      link.securityStatus = aiMetadata.securityStatus;
+      await link.save();
+    }
+
     return NextResponse.json(
       {
         id: link._id,
         longUrl: link.longUrl,
         shortCode: link.shortCode,
         securityStatus: link.securityStatus,
+        aiMetadata: link.aiMetadata,
         createdAt: link.createdAt,
       },
       { status: 201 }
